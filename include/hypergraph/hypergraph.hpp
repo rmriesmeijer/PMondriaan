@@ -63,6 +63,7 @@ class net {
     auto global_size() const { return global_size_; }
 
     void set_global_size(size_t size) { global_size_ = size; }
+    void set_cost(long cost) { cost_ = cost; }
     void add_vertex(long v) { vertices_.push_back(v); }
 
     double scaled_cost() const {
@@ -290,6 +291,11 @@ void remove_free_nets(bulk::world& world, pmondriaan::hypergraph& H, size_t max_
  * Removes all free nets.
  */
 void remove_free_nets(pmondriaan::hypergraph& H, size_t max_size);
+
+/**
+ * Simplifies all duplicate nets.
+ */
+void simplify_duplicate_nets(pmondriaan::hypergraph& H);
 
 /**
  * Creates a new hypergraph that only contains the vertices of H with local id between start and end.

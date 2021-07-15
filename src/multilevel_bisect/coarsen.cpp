@@ -323,6 +323,8 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
                                               pmondriaan::contraction& C,
                                               pmondriaan::options& opts,
                                               std::mt19937& rng) {
+    simplify_duplicate_nets(H);
+    
     auto matches = std::vector<std::vector<long>>(H.size(), std::vector<long>());
     auto matched = std::vector<bool>(H.size(), false);
     // contains the vertices of the contracted hypergraph

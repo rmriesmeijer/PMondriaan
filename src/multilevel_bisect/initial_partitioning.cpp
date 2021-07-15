@@ -27,6 +27,8 @@ long initial_partitioning(pmondriaan::hypergraph& H,
     // pmondriaan::interval labels = {0,1};
     // bisect_random(H, max_weight_0, max_weight_1, 0, H.size(), labels, rng);
 
+    simplify_duplicate_nets(H);
+
     auto L_best = std::vector<long>(H.size());
     long best_cut = std::numeric_limits<long>::max();
     long best_imbalance = std::numeric_limits<long>::max();
@@ -47,6 +49,9 @@ long initial_partitioning(pmondriaan::hypergraph& H,
         // std::cout << "time lp: " << time.get_change() << "(round " << i << ")\n";
 
         auto cut = pmondriaan::KLFM(H, C, H.weight_part(0), H.weight_part(1),
+                                    max_weight_0, max_weight_1, opts, rng);
+
+        cut = pmondriaan::KLFM(H, C, H.weight_part(0), H.weight_part(1),
                                     max_weight_0, max_weight_1, opts, rng);
 
         // std::cout << "time KLFM: " << time.get_change() << "(round " << i << ")\n";

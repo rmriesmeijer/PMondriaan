@@ -560,6 +560,34 @@ void remove_free_nets(pmondriaan::hypergraph& H, size_t max_size) {
 }
 
 /**
+ * Simplifies all duplicate nets.
+ */
+void simplify_duplicate_nets(pmondriaan::hypergraph& H) {
+    std::map<std::vector<long>, int> edge_counts;
+    std::map<std::vector<long>, long> ids;
+
+    for (auto n : H.nets()) {
+        edge_counts[n.vertices()] += n.cost();
+        ids[n.vertices()] = n.id();
+    }
+
+    std::unordered_set<long> remove_nets;
+
+    for (auto n = 0u; n < H.nets().size(); n++) {
+        if(ids[H.nets()[n].vertices()] != H.nets()[n].id()) {
+            remove_nets.insert(H.nets()[n].id());
+        }
+        else {
+            H.nets()[n].set_cost(edge_counts[H.nets()[n].vertices()]);
+        }
+    }
+
+    for (auto n : remove_nets) {
+        H.remove_net_by_index(H.local_id_net(n));
+    }
+}
+
+/**
  * Creates a new hypergraph that only contains the vertices of H with local id between start and end.
  */
 pmondriaan::hypergraph
