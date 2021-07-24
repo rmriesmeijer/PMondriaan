@@ -95,6 +95,12 @@ int main(int argc, char** argv) {
     app.add_option("--KLFM_par_send_moves", options.KLFM_par_number_send_moves,
                    "The number of moves to find before synchronizing in the "
                    "parallel KLFM algorithm");
+    app.add_option("--max_overlapping_nets", options.max_overlapping_nets,
+                   "The number of overlapping nets that is sufficient to halt"
+                   "the matching score computation");
+    app.add_option("--normal_coarsening_nrvertices", options.normal_coarsening_nrvertices,
+                   "The number of vertices that is sufficient to halt"
+                   "the simplified version of sequential coarsening");
 
     CLI11_PARSE(app, argc, argv);
 

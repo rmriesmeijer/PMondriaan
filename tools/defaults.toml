@@ -15,3 +15,5 @@ coarsening_max_rounds = 128
 KLFM_max_passes = 25
 KLFM_max_no_gain_moves = 200
 KLFM_par_send_moves = 20
+max_overlapping_nets = 10000000
+normal_coarsening_nrvertices = 100000000

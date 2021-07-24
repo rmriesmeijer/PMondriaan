@@ -324,6 +324,26 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
                                               pmondriaan::options& opts,
                                               std::mt19937& rng) {
     simplify_duplicate_nets(H);
+
+    // int counts [5000] {};
+    // std::map<long, long> edge_costs;
+
+    // for (auto n : H.nets()) {
+    //     counts[n.size()]++;
+    //     edge_costs[n.cost()]++;
+    // }
+
+    // for (auto n = 0u; n < 500; n++) {
+    //     if (counts[n] > 0) {
+    //         std::cout << "deg " << n << ": " << counts[n] << "\n";
+    //     }
+    //     // world.log("deg %d: %d",
+    //     //                       n, counts[H.nets()[n].vertices().size()]);
+    // }
+
+    // for (auto t : edge_costs) {
+    //     std::cout << "cost " << t.first << ": " << t.second << "\n";
+    // }
     
     auto matches = std::vector<std::vector<long>>(H.size(), std::vector<long>());
     auto matched = std::vector<bool>(H.size(), false);
@@ -331,27 +351,42 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
     auto new_v = std::vector<pmondriaan::vertex>();
 
     auto ip = std::vector<double>(H.size(), 0.0);
+    auto ip2 = std::vector<double>(H.size(), 0.0);
     // we visit the vertices in a random order
     std::vector<long> indices(H.size());
     std::iota(indices.begin(), indices.end(), 0);
     std::shuffle(indices.begin(), indices.end(), rng);
 
+    auto time = bulk::util::timer();
+    auto timescorecalc = time.get_change();
+    bool justdoit = false;
+
     for (auto i : indices) {
         auto& v = H(i);
         if (matches[i].empty()) {
+            time.get_change();
             auto visited = std::vector<long>();
+            bool skip = false;
+            std::shuffle( v.nets().begin(),  v.nets().end(), rng);
             for (auto n_id : v.nets()) {
-                double scaled_cost = H.net(n_id).scaled_cost();
-                for (auto u_id : H.net(n_id).vertices()) {
-                    auto u_local = H.local_id(u_id);
-                    if ((!matched[u_local]) && (u_local != i)) {
-                        if (ip[u_local] == 0.0) {
-                            visited.push_back(u_local);
+                if (skip == false || H.vertices().size() < opts.normal_coarsening_nrvertices || justdoit) {
+                    double scaled_cost = H.net(n_id).scaled_cost();
+                    for (auto u_id : H.net(n_id).vertices()) {
+                        auto u_local = H.local_id(u_id);
+                        if ((!matched[u_local]) && (u_local != i)) {
+                            if (ip[u_local] == 0.0) {
+                                visited.push_back(u_local);
+                            }
+                            ip[u_local] += scaled_cost;
+                            ip2[u_local]++;
+                            if (ip2[u_local] > opts.max_overlapping_nets) {
+                                skip = true;
+                            }
                         }
-                        ip[u_local] += scaled_cost;
                     }
                 }
             }
+            timescorecalc += time.get_change();
 
             double max_ip = 0.0;
             long best_match = -1;
@@ -376,6 +411,9 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
             add_v_to_list(new_v, v);
         }
     }
+
+    world.log("Time in seq match: %lf", timescorecalc);
+
     auto result = pmondriaan::contract_hypergraph(world, H, C, matches, new_v);
     return result;
 }

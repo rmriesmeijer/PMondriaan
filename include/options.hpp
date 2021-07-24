@@ -17,6 +17,8 @@ struct options {
     size_t KLFM_max_passes;
     size_t KLFM_max_no_gain_moves;
     size_t KLFM_par_number_send_moves;
+    size_t max_overlapping_nets;
+    size_t normal_coarsening_nrvertices;
 
     m metric;
     bisection bisection_mode;

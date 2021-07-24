@@ -29,6 +29,28 @@ long initial_partitioning(pmondriaan::hypergraph& H,
 
     simplify_duplicate_nets(H);
 
+    // int counts [5000] {};
+    // std::map<long, long> edge_costs;
+
+    // for (auto n : H.nets()) {
+    //     counts[n.size()]++;
+    //     edge_costs[n.cost()]++;
+    // }
+
+    // // for (auto n = 0u; n < 5000; n++) {
+    // //     if (counts[n] > 0) {
+    // //         std::cout << "deg " << n << ": " << counts[n] << "\n";
+    // //     }
+    // //     // world.log("deg %d: %d",
+    // //     //                       n, counts[H.nets()[n].vertices().size()]);
+    // // }
+
+    // for (auto t : edge_costs) {
+    //     std::cout << "cost " << t.first << ": " << t.second << "\n";
+    // }
+
+
+
     auto L_best = std::vector<long>(H.size());
     long best_cut = std::numeric_limits<long>::max();
     long best_imbalance = std::numeric_limits<long>::max();
@@ -49,9 +71,6 @@ long initial_partitioning(pmondriaan::hypergraph& H,
         // std::cout << "time lp: " << time.get_change() << "(round " << i << ")\n";
 
         auto cut = pmondriaan::KLFM(H, C, H.weight_part(0), H.weight_part(1),
-                                    max_weight_0, max_weight_1, opts, rng);
-
-        cut = pmondriaan::KLFM(H, C, H.weight_part(0), H.weight_part(1),
                                     max_weight_0, max_weight_1, opts, rng);
 
         // std::cout << "time KLFM: " << time.get_change() << "(round " << i << ")\n";
