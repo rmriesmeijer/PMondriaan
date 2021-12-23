@@ -19,25 +19,25 @@ namespace pmondriaan {
  * Creates a hypergraph from a matrix in mtx format.
  */
 std::optional<pmondriaan::hypergraph>
-read_hypergraph_istream(std::istream& fin, std::string mode_weight = "one");
+read_hypergraph_istream(std::istream& fin, std::istream& ffin, std::string mode_weight = "one");
 
 /**
  * Creates a distributed hypergraph from a graph in mtx format. The mode states
  * how the weights of the vertices are computed.
  */
 std::optional<pmondriaan::hypergraph>
-read_hypergraph_istream(std::istream& fin, bulk::world& world, std::string mode_weight = "one");
+read_hypergraph_istream(std::istream& fin, bulk::world& world, std::istream& ffin, std::string mode_weight = "one");
 
 /**
  * Creates a hypergraph from a file that contains a matrix in mtx format.
  */
 std::optional<pmondriaan::hypergraph>
-read_hypergraph(std::string file, std::string mode_weight = "one");
+read_hypergraph(std::string file, std::string mode_weight = "one", std::string fixfile = "../test/fix.txt");
 
 /**
  * Creates a distributed hypergraph from a file that contains a matrix in mtx format.
  */
 std::optional<pmondriaan::hypergraph>
-read_hypergraph(std::string file, bulk::world& world, std::string mode_weight = "one");
+read_hypergraph(std::string file, bulk::world& world, std::string mode_weight = "one", std::string fixfile = "../test/fix.txt");
 
 } // namespace pmondriaan

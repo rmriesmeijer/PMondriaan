@@ -29,7 +29,7 @@ long initial_partitioning(pmondriaan::hypergraph& H,
 
     simplify_duplicate_nets(H);
 
-    bool broken = false;
+    bool broken = true;
 
     unsigned int c = 0;
     for (auto n = 0u; n < H.nets().size() && broken == false; n++) {
@@ -38,10 +38,19 @@ long initial_partitioning(pmondriaan::hypergraph& H,
         }
     }
 
+    auto co = 0;
+    for (auto n = 0u; n < H.nets().size(); n++) {
+        co += H.nets()[n].cost();
+    }
+    std::cout << "totco: " << co << "\n";
+
     if(4 * c > H.nets().size()) {
         break_triples(H);
         broken = true;
     }
+
+    //H.print();
+    std::cout << "totco2: " << H.nets().size() << "\n";
 
     auto L_best = std::vector<long>(H.size());
     long best_cut = std::numeric_limits<long>::max();
@@ -60,10 +69,16 @@ long initial_partitioning(pmondriaan::hypergraph& H,
             H(i).set_part(L[i]);
         }
 
+        auto cs = cutsize(H, opts.metric);
+        std::cout << "lp cs: " << cs << "\n";
+
+
         // std::cout << "time lp: " << time.get_change() << "(round " << i << ")\n";
 
         auto cut = pmondriaan::KLFM(H, C, H.weight_part(0), H.weight_part(1),
                                     max_weight_0, max_weight_1, opts, rng);
+
+        std::cout << "kl cs: " << cs << "\n";
 
         // std::cout << "time KLFM: " << time.get_change() << "(round " << i << ")\n";
 
@@ -89,9 +104,12 @@ long initial_partitioning(pmondriaan::hypergraph& H,
             long cost = H.nets()[n].cost();
             H.nets()[n].set_cost(cost / 2);
         }
+        std::cout << "init: " << best_cut << "\n";
 
         return best_cut / 2; 
     }
+    
+    std::cout << "init: " << best_cut << "\n";
 
     return best_cut;
 }

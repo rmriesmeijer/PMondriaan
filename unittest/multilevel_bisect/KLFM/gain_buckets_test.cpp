@@ -13,9 +13,13 @@ std::string mtx_three_nonzeros = R"(%%MatrixMarket matrix coordinate real genera
 1 3 1.0
 )";
 
+std::string fixfile = R"(
+)";
+
 TEST(GainBucket, GainBucketInit) {
     std::stringstream mtx_ss(mtx_three_nonzeros);
-    auto H = read_hypergraph_istream(mtx_ss, "one").value();
+    std::stringstream mtx_ssf(fixfile);
+    auto H = read_hypergraph_istream(mtx_ss, mtx_ssf, "one").value();
     H(0).set_part(0);
     H(1).set_part(1);
     H(2).set_part(0);

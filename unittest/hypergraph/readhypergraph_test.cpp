@@ -13,6 +13,9 @@ std::string mtx_three_nonzeros = R"(%%MatrixMarket matrix coordinate real genera
 1 3 1.0
 )";
 
+std::string mtx_three_nonzeros_fix = R"(
+)";
+
 TEST(ReadHypergraph, read_hypergraph) {
     auto H_missing = read_hypergraph("file_does_not_exist.mtx", "one");
     ASSERT_TRUE(!H_missing);
@@ -21,8 +24,11 @@ TEST(ReadHypergraph, read_hypergraph) {
     read_hypergraph("../test/data/matrices/cage3/cage3.mtx", "one");
     ASSERT_TRUE(H_exists);
 
+
+
     std::stringstream mtx_ss(mtx_three_nonzeros);
-    auto H = read_hypergraph_istream(mtx_ss, "degree");
+    std::stringstream mtx_ssf(mtx_three_nonzeros_fix);
+    auto H = read_hypergraph_istream(mtx_ss, mtx_ssf, "degree");
     ASSERT_TRUE(H);
     ASSERT_EQ(H->size(), 3);
 }

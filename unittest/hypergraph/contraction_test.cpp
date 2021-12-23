@@ -25,9 +25,13 @@ std::string test_mtx = R"(%%MatrixMarket matrix coordinate real general
 3 4 1.0
 )";
 
+std::string fixfile = R"(
+)";
+
 TEST(Contraction, MergeFreeVertices) {
     std::stringstream mtx_ss(test_mtx);
-    auto hypergraph = read_hypergraph_istream(mtx_ss, "one");
+    std::stringstream mtx_ssf(fixfile);
+    auto hypergraph = read_hypergraph_istream(mtx_ss, mtx_ssf, "one");
     auto H = hypergraph.value();
     remove_free_nets(H, 1);
     ASSERT_EQ(H.size(), 4);
@@ -49,7 +53,8 @@ TEST(Contraction, ParallelMergeFreeVertices) {
     environment env;
     env.spawn(2, [](bulk::world& world) {
         std::stringstream mtx_ss(test_mtx);
-        auto hypergraph = read_hypergraph_istream(mtx_ss, world, "one");
+        std::stringstream mtx_ssf(fixfile);
+        auto hypergraph = read_hypergraph_istream(mtx_ss, world, mtx_ssf, "one");
         auto H = hypergraph.value();
         remove_free_nets(world, H, 1);
         ASSERT_EQ(H.global_size(), 4);

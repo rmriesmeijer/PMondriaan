@@ -36,7 +36,14 @@ void recursive_bisect(bulk::world& world,
     std::random_device rd;
     std::mt19937 rng(rd());
 
-    auto global_weight = pmondriaan::global_weight(world, H);
+    long fix_weight_diff = 0;
+    for(auto v : H.vertices()) {
+        if(v.fixpart() != -1) {
+            fix_weight_diff = v.fixwdiff();
+        }
+    }
+
+    auto global_weight = pmondriaan::global_weight(world, H) + 2 * fix_weight_diff;
     long maxweight = ((1.0 + epsilon) * global_weight) / k;
 
     auto sub_world = world.split(0);
@@ -166,8 +173,8 @@ void recursive_bisect(bulk::world& world,
             auto max_global_weights =
             compute_max_global_weight(k_, k_low, k_high, weight_mypart, maxweight);
 
-            auto weight_parts = bisect(*sub_world, H, opts, max_global_weights[0],
-                                       max_global_weights[1], start, end, labels, rng);
+            auto weight_parts = bisect(*sub_world, H, opts, maxweight - fix_weight_diff,
+                                       maxweight - fix_weight_diff, start, end, labels, rng);
 
             interval labels_0 = {labels.low, labels.high - k_high};
             interval labels_1 = {labels.low + k_low, labels.high};

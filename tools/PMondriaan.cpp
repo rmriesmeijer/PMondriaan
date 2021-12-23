@@ -24,9 +24,10 @@ int main(int argc, char** argv) {
     struct cli_settings {
         int p = 2;
         long k = 2;
-        double eps = 0.05;
+        double eps = 0.03;
         double eta = 0.10;
         std::string matrix_file;
+        std::string fix_file;
         std::string hypergraph_weights;
     };
 
@@ -38,6 +39,10 @@ int main(int argc, char** argv) {
                                        "File including the hypergraph to be "
                                        "partitioned in matrixmarket format");
     fopt->check(CLI::ExistingFile);
+
+    CLI::Option* ffopt = app.add_option("-x, --fix-file", settings.fix_file,
+                                       "Fix file for fixed vertices.");
+    ffopt->check(CLI::ExistingFile);
 
     app.add_option("-p, --processors", settings.p,
                    "Number of processors to be used", settings.p);
@@ -112,7 +117,7 @@ int main(int argc, char** argv) {
         }
 
         auto hypergraph = pmondriaan::read_hypergraph(settings.matrix_file, world,
-                                                      settings.hypergraph_weights);
+                                                      settings.hypergraph_weights, settings.fix_file);
 
         if (!hypergraph) {
             std::cerr << "Error: failed to load hypergraph\n";
@@ -120,9 +125,27 @@ int main(int argc, char** argv) {
         }
         auto H = hypergraph.value();
 
+        long fix_cost_diff = 0;
+        long fid = -1;
+        long fix_weight_diff = 0;
+        for(auto v : H.vertices()) {
+            if(v.fixpart() != -1) {
+                fid = v.id();
+                fix_cost_diff = v.fixcdiff();
+                fix_weight_diff = v.fixwdiff();
+            }
+        }
+
         auto time = bulk::util::timer();
         recursive_bisect(world, H, settings.k, settings.eps, settings.eta, options);
         auto time_used = time.get();
+
+        if(fid != -1) {
+            long labdiff = (H(fid).fixpart() - H(fid).part()) * (H(fid).fixpart() - H(fid).part());
+            for(auto v : H.vertices()) {
+                v.set_part((labdiff + v.part()) % 2);
+            }
+        }
 
         auto lb = pmondriaan::load_balance(world, H, settings.k);
         auto cutsize = pmondriaan::cutsize(world, H, options.metric);
@@ -143,11 +166,11 @@ int main(int argc, char** argv) {
                       "using %d processors",
                       H.global_size(), settings.k, world.active_processors());
             world.log("Load balance of partitioning found: %lf", lb);
-            world.log("Cutsize of partitioning found: %d", cutsize);
+            world.log("Cutsize of partitioning found: %d", cutsize + fix_cost_diff);
             world.log("Time used: %lf milliseconds", time_used);
 
             for (int i = 0; i < settings.k; i++) {
-                world.log("Weight part %d: %ld", i, weight_parts[i]);
+                world.log("Weight part %d: %ld", i, weight_parts[i] + fix_weight_diff);
             }
         }
 

@@ -22,11 +22,15 @@ std::string mtx_three_nonzeros = R"(%%MatrixMarket matrix coordinate real genera
 1 3 1.0
 )";
 
+std::string fixfile = R"(
+)";
+
 TEST(WritePartitioning, StartParts) {
     environment env;
     env.spawn(2, [](bulk::world& world) {
         std::stringstream mtx_ss(mtx_three_nonzeros);
-        auto hypergraph = read_hypergraph_istream(mtx_ss, world, "degree");
+        std::stringstream mtx_ssf(fixfile);
+        auto hypergraph = read_hypergraph_istream(mtx_ss, world, mtx_ssf, "degree");
         auto H = hypergraph.value();
         if (world.rank() == 0) {
             H(0).set_part(0);

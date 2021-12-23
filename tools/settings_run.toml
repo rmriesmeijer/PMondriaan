@@ -1,7 +1,8 @@
-file="../test/data/matrices/dolphins/dolphins.mtx"
-processors=2
+file="../../nextnew/PMondriaan/test/data/matrices/Emilia_923/Emilia_923.mtx"
+fix-file="./pmon0003fix2.txt"
+processors=1
 parts=2
-eps=0.03
+eps=0.04
 eta=0.03
 weights="degree"
 bisect=1

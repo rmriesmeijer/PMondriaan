@@ -88,7 +88,7 @@ void request_matches(pmondriaan::hypergraph& H,
 
     // compute the inner products of the samples and the local vertices
     auto best_ip =
-    std::vector<std::pair<float, long>>(H.size(), std::make_pair(0.0, -1));
+    std::vector<std::pair<float, long>>(H.size(), std::make_pair(0.0, -1000000000));
     auto current_ip = std::vector<float>(H.size(), 0.0);
     std::unordered_set<long> changed_indices;
 
@@ -116,7 +116,7 @@ void request_matches(pmondriaan::hypergraph& H,
 
     // we set the ip of all local samples with all samples to 0, so they will not match eachother
     for (auto local_sample : indices_samples) {
-        best_ip[local_sample] = std::make_pair(0.0, -1);
+        best_ip[local_sample] = std::make_pair(0.0, -1000000000);
     }
 
     // find best sample for vertex v and add it to the list of that sample
@@ -124,7 +124,7 @@ void request_matches(pmondriaan::hypergraph& H,
     std::vector<std::vector<std::pair<long, float>>>(total_samples);
     for (auto& v : H.vertices()) {
         auto local_id = H.local_id(v.id());
-        if (best_ip[local_id].second != -1) {
+        if (best_ip[local_id].second != -1000000000) {
             requested_matches[best_ip[local_id].second].push_back(
             std::make_pair(v.id(), best_ip[local_id].first));
         }
@@ -193,11 +193,11 @@ void send_information_matches(bulk::world& world,
                               std::vector<bool>& matched,
                               long sample_size) {
     std::sort(accepted_matches.begin(), accepted_matches.end());
-    long prev_sample = -1;
+    long prev_sample = -1000000000;
     long total_weight_sample = 0;
     auto total_nets_sample = std::unordered_set<long>();
     for (auto& [sample, proposer] : accepted_matches) {
-        if ((sample != prev_sample) && (prev_sample >= 0)) {
+        if ((sample != prev_sample) && (prev_sample > -1000000000)) {
             // We send all information about the matches of the previous sample to the correct processor
             long t = prev_sample / sample_size;
             auto nets_vector = std::vector<long>();
@@ -219,7 +219,7 @@ void send_information_matches(bulk::world& world,
     }
 
     // We send all information about the last sample
-    if (prev_sample != -1) {
+    if (prev_sample != -1000000000) {
         long t = prev_sample / sample_size;
         auto nets_vector = std::vector<long>();
         auto cost_nets = std::vector<long>();
@@ -323,14 +323,30 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
                                               pmondriaan::contraction& C,
                                               pmondriaan::options& opts,
                                               std::mt19937& rng) {
-    simplify_duplicate_nets(H);
+    simplify_duplicate_nets(H);    
+
+    auto co = 0;
+    auto minco = 1000;
+    auto maxco = 0;
+    for (auto n = 0u; n < H.nets().size(); n++) {
+        co += H.nets()[n].cost();
+        if(minco > H.nets()[n].cost()) {
+            minco = H.nets()[n].cost();
+        }
+        if(maxco < H.nets()[n].cost()) {
+            maxco = H.nets()[n].cost();
+        }
+    }
+    std::cout << "totco: " << co << "\n";
+    std::cout << "minco: " << minco << "\n";
+    std::cout << "maxco: " << maxco << "\n";
     
     auto matches = std::vector<std::vector<long>>(H.size(), std::vector<long>());
     auto matched = std::vector<bool>(H.size(), false);
     // contains the vertices of the contracted hypergraph
     auto new_v = std::vector<pmondriaan::vertex>();
 
-    auto ip = std::vector<float>(H.size(), 0.0);
+    auto ip = std::vector<float>(H.size(), -1000000000.0);
     // we visit the vertices in a random order
     std::vector<long> indices(H.size());
     std::iota(indices.begin(), indices.end(), 0);
@@ -345,8 +361,9 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
                 for (auto u_id : H.net(n_id).vertices()) {
                     auto u_local = H.local_id(u_id);
                     if ((!matched[u_local]) && (u_local != i)) {
-                        if (ip[u_local] == 0.0) {
+                        if (ip[u_local] == -1000000000.0) {
                             visited.push_back(u_local);
+                            ip[u_local] = 0.0;
                         }
                         ip[u_local] += scaled_cost;
                     }
@@ -354,7 +371,7 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
             }
 
             float max_ip = 0.0;
-            long best_match = -1;
+            long best_match = -1000000000;
             for (auto u : visited) {
                 ip[u] *= (1.0 / (float)std::min(v.weight(), H(u).weight()));
                 if ((ip[u] > max_ip) && (matches[u].size() < opts.coarsening_max_clustersize)) {
@@ -362,7 +379,7 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
                     best_match = u;
                 }
             }
-            if (best_match != -1) {
+            if (best_match != -1000000000) {
                 matches[best_match].push_back(v.id());
                 matched[i] = true;
             } else {
@@ -370,7 +387,7 @@ pmondriaan::hypergraph coarsen_hypergraph_seq(bulk::world& world,
             }
 
             for (auto u : visited) {
-                ip[u] = 0.0;
+                ip[u] = -1000000000.0;
             }
         } else {
             add_v_to_list(new_v, v);

@@ -31,10 +31,16 @@ class vertex {
     long weight() { return weight_; }
     long part() { return part_; }
     auto degree() { return nets_.size(); }
+    long fixpart() { return fixpart_; }
+    long fixwdiff() { return fixwdiff_; }
+    long fixcdiff() { return fixcdiff_; }
 
     void set_id(long value) { id_ = value; }
     void add_weight(long value) { weight_ += value; }
     void set_part(long value) { part_ = value; }
+    void set_fixpart(long value) { fixpart_ = value; }
+    void set_fixwdiff(long value) { fixwdiff_ = value; }
+    void set_fixcdiff(long value) { fixcdiff_ = value; }
 
     auto deg() const { return nets_.size(); }
 
@@ -54,6 +60,9 @@ class vertex {
     std::vector<long> nets_;
     long weight_;
     long part_ = -1;
+    long fixpart_ = -1;
+    long fixwdiff_ = 0;
+    long fixcdiff_ = 0;
 };
 
 /**
@@ -76,6 +85,7 @@ class net {
     void set_global_size(size_t size) { global_size_ = size; }
     void set_cost(long cost) { cost_ = cost; }
     void add_vertex(long v) { vertices_.push_back(v); }
+    void pop_back() { vertices_.pop_back(); }
 
     double scaled_cost() const {
         return (double)cost_ / ((double)global_size_ - 1.0);;
@@ -121,7 +131,7 @@ class hypergraph {
     : global_size_(other.global_size_), global_number_nets_(other.global_number_nets_),
       vertices_(other.vertices_), nr_nz_(other.nr_nz_) {
         for (const auto& n : other.nets()) {
-            nets_.push_back(pmondriaan::net(n.id(), std::vector<long>()));
+            nets_.push_back(pmondriaan::net(n.id(), std::vector<long>(), n.cost()));
             nets_.back().set_global_size(n.global_size());
         }
 
@@ -230,6 +240,11 @@ class hypergraph {
     auto nr_nz() const { return nr_nz_; }
     auto& map() { return global_to_local; }
     auto& map_nets() { return net_global_to_local; }
+
+
+    auto set_global_size(auto v) { global_size_ = v; }
+    auto set_global_number_nets(auto v) { global_number_nets_ = v; }
+    auto set_nr_nz(auto v) { nr_nz_ = v; }
 
     void print();
     // For testing purposes, checks if the maps are correct

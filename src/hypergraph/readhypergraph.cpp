@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #include <bulk/bulk.hpp>
 #ifdef BACKEND_MPI
@@ -23,7 +24,7 @@ namespace pmondriaan {
  * Creates a hypergraph from a graph in mtx format.
  */
 std::optional<pmondriaan::hypergraph>
-read_hypergraph_istream(std::istream& fin, std::string mode_weight) {
+read_hypergraph_istream(std::istream& fin, std::istream& ffin, std::string mode_weight) {
 
     size_t E, V;
     uint64_t L;
@@ -100,13 +101,213 @@ read_hypergraph_istream(std::istream& fin, std::string mode_weight) {
     }
 
     for (size_t i = 0; i < E; i++) {
-        if (!vertex_list[i].empty()) {
+        if (!vertex_list[i].size()) {
             nets.push_back(pmondriaan::net(i, vertex_list[i]));
         }
     }
 
+
     auto H = pmondriaan::hypergraph(V, E, vertices, nets, nz);
-    remove_free_nets(H, 0);
+
+    // List of fixed vertices of each bisection part.
+    auto fixed1 = std::vector<long>();
+    auto fixed2 = std::vector<long>();
+    std::string ffline;
+
+    // Read fixed file
+    while (std::getline(ffin, ffline)) {
+        try {
+            std::vector<long> pair = std::vector<long>();
+            char *pch;
+            const char s[2] = " ";
+            pch = strtok ((char*)ffline.c_str(),s);
+            while (pch != NULL) {
+                pair.push_back(std::stol(pch));
+                pch = strtok (NULL, " ");
+            }
+            if(pair[1] == 0) {
+                fixed1.push_back(pair[0]);
+                H(H.local_id(pair[0])).set_fixpart(0);
+            }
+            if(pair[1] ==  1){
+                fixed2.push_back(pair[0]);
+                H(H.local_id(pair[0])).set_fixpart(1);
+            }
+        } catch (...) { std::cerr << "Error: fixfile\n"; }
+    }
+
+    // We need to transform due to fixed vertices in both parts.
+    if(fixed1.size() != 0 && fixed2.size() != 0) {
+        std::cout << "transform fixed\n";
+        auto fix_nets1 = std::vector<long>();
+        auto fix_nets2 = std::vector<long>();
+        auto fix_nets_overlap = std::vector<long>();
+        auto netsf = std::vector<long>();
+        long w1 = 0;
+        long idf = fixed1[0];
+        long g = 0;
+        long maxid = 0;
+
+        long fc = 0;
+        for(auto& n : H.nets()) {
+            auto vec = std::vector<long>();
+            bool net_has_fix1 = false;
+            bool net_has_fix2 = false;
+            if(n.id() > maxid) {
+                maxid = n.id();
+            }
+            for(auto v : n.vertices()) {
+                if(H(H.local_id(v)).fixpart() == 0) {
+                    net_has_fix1 = true;
+                } else if(H(H.local_id(v)).fixpart() == 1) {
+                    net_has_fix2 = true;
+                } else {
+                    vec.push_back(v);
+                }
+            }
+            if(net_has_fix1 == true && net_has_fix2 == true) {
+                fc += n.cost();
+                fix_nets_overlap.push_back(n.id());
+            } else if(net_has_fix2 == true) {
+                fix_nets2.push_back(n.id());
+                netsf.push_back(n.id());
+            } else if(net_has_fix1 == true) {
+                fix_nets1.push_back(n.id());
+                netsf.push_back(n.id());
+            }
+
+            while(n.vertices().size() > 0) {
+                n.pop_back();
+            }
+            for(auto indi : vec) {
+                n.add_vertex(indi);
+            }
+            
+            g++;
+        }
+        std::cout << "transform fixed1\n";
+
+        for(auto n : fix_nets_overlap) {
+            H.remove_net_by_index(H.local_id_net(n));
+        }
+
+        for(auto i : fixed1) {
+            w1 += H(H.local_id(i)).weight();
+            H.remove_free_vertex(i);
+            g++;
+        }
+        std::cout << "transform fixed2\n";
+
+        long w2 = 0;
+        for(auto i : fixed2) {
+            w2 += H(H.local_id(i)).weight();
+            H.remove_free_vertex(i);
+            g++;
+        }
+
+        std::cout << "transform fixed3 " << H.nets().size() << "\n";
+
+        long fix_weight_difference = 0;
+        long fixed_vertex_part = -1;
+        long wf = -1;
+        long cid = maxid;
+        if(w1 > w2) {
+            wf = w1 - w2;
+            fix_weight_difference = w2;
+            fixed_vertex_part = 0;
+            for(auto n : fix_nets2) {
+                if(H.nets()[H.local_id_net(n)].size() > 0) {
+                    long costc = H.nets()[H.local_id_net(n)].cost();
+                    auto verts = std::vector<long>();
+                    for(auto i : H.nets()[H.local_id_net(n)].vertices()) {
+                        verts.push_back(i);
+                    }
+                    if(verts.size() == 0) {
+                        std::cerr << "bad1! \n"; 
+                    }
+                    H.nets()[H.local_id_net(n)].set_cost( costc);
+                    //H.add_net(cid, verts, costc);
+                    cid++;
+                }
+            }
+        }
+        else {
+            wf = w2 - w1;
+            fix_weight_difference = w1;
+            fixed_vertex_part = 1;
+            for(auto n : fix_nets1) {
+                if(H.nets()[H.local_id_net(n)].size() > 0) {
+                    long costc = H.nets()[H.local_id_net(n)].cost();
+                    auto verts = std::vector<long>();
+                    for(auto i : H.nets()[H.local_id_net(n)].vertices()) {
+                        verts.push_back(i);
+                    }
+                    if(verts.size() == 0) {
+                        std::cerr << "bad! \n"; 
+                    }
+                    H.nets()[H.local_id_net(n)].set_cost( costc);
+                    //H.add_net(cid, verts, costc);
+                    cid++;
+                }
+            }
+        }
+
+        H.add_vertex(idf, netsf, wf);
+        H.add_to_nets(H(H.local_id(idf)));
+
+        auto val = 0;
+        for(auto n : H.nets()) {
+            val += n.size();
+        }
+        size_t nzx = val;
+        size_t VX = V - fixed1.size() - fixed2.size() + 1;
+        size_t EX = H.nets().size();
+        auto verticesx = std::vector<pmondriaan::vertex>();
+        auto netsx = std::vector<pmondriaan::net>();
+
+
+
+        for (size_t i = 0; i < H.vertices().size(); i++) {
+            for(size_t j = 0; j < H.vertices()[i].nets().size(); j++) {
+                H.vertices()[i].nets()[j] = H.local_id_net(H.vertices()[i].nets()[j]);
+            }
+            verticesx.push_back(pmondriaan::vertex(i, H.vertices()[i].nets(), H.vertices()[i].weight()));
+        }
+
+        for(auto& n : H.nets()) {
+            for(size_t i = 0; i < n.vertices().size(); i++) {
+                n.vertices()[i] = H.local_id(n.vertices()[i]);
+            }
+        }
+
+        for (size_t i = 0; i < EX; i++) {
+            if (H.nets()[i].size() > 0) {
+                netsx.push_back(pmondriaan::net(i, H.nets()[i].vertices(), H.nets()[i].cost()));
+            }
+        }
+
+        auto HC = pmondriaan::hypergraph(VX, EX, verticesx, netsx, nzx);
+
+        HC(H.local_id(idf)).set_fixpart(fixed_vertex_part);
+        HC(H.local_id(idf)).set_fixwdiff(fix_weight_difference);
+        HC(H.local_id(idf)).set_fixcdiff(fc);
+
+        std::cout << "lol: " << fc << "\n";
+
+
+        pmondriaan::remove_free_nets(HC, 0);
+
+
+        
+        std::cout << "transform over\n";
+        return std::move(HC);
+    }
+
+
+    pmondriaan::remove_free_nets(H, 0);
+
+    std::cout << "transform over 2\n";
+
     return std::move(H);
 }
 
@@ -114,7 +315,7 @@ read_hypergraph_istream(std::istream& fin, std::string mode_weight) {
  * Creates a distributed hypergraph from a graph in mtx format.
  */
 std::optional<pmondriaan::hypergraph>
-read_hypergraph_istream(std::istream& fin, bulk::world& world, std::string mode_weight) {
+read_hypergraph_istream(std::istream& fin, bulk::world& world, std::istream& ffin, std::string mode_weight) {
 
     auto s = world.rank();
     auto p = world.active_processors();
@@ -217,27 +418,265 @@ read_hypergraph_istream(std::istream& fin, bulk::world& world, std::string mode_
 
     auto H = pmondriaan::hypergraph(V, E, vertices, nets, nz);
 
+    // List of fixed vertices of each bisection part.
+    auto fixed1 = std::vector<long>();
+    auto fixed2 = std::vector<long>();
+    std::string ffline;
+
+    // Read fixed file
+    while (std::getline(ffin, ffline)) {
+        try {
+            std::vector<long> pair = std::vector<long>();
+            char *pch;
+            const char s[2] = " ";
+            pch = strtok ((char*)ffline.c_str(),s);
+            while (pch != NULL) {
+                pair.push_back(std::stol(pch));
+                pch = strtok (NULL, " ");
+            }
+            if(pair[1] == 0) {
+                fixed1.push_back(pair[0]);
+                H(H.local_id(pair[0])).set_fixpart(0);
+            }
+            if(pair[1] ==  1){
+                fixed2.push_back(pair[0]);
+                H(H.local_id(pair[0])).set_fixpart(1);
+            }
+        } catch (...) { std::cerr << "Error: fixfile\n"; }
+    }
+
+    // We need to transform due to fixed vertices in both parts.
+    if(fixed1.size() != 0 && fixed2.size() != 0) {
+        std::cout << "transform fixed\n";
+        auto fix_nets1 = std::vector<long>();
+        auto fix_nets2 = std::vector<long>();
+        auto fix_nets_overlap = std::vector<long>();
+        auto netsf = std::vector<long>();
+        long w1 = 0;
+        long idf = fixed1[0];
+        long g = 0;
+        long maxid = 0;
+
+        long fc = 0;
+        long fc1 = 0;
+        long fc2 = 0;
+        for(auto& n : H.nets()) {
+            auto vec = std::vector<long>();
+            bool net_has_fix1 = false;
+            bool net_has_fix2 = false;
+            if(n.id() > maxid) {
+                maxid = n.id();
+            }
+            for(auto v : n.vertices()) {
+                if(H(H.local_id(v)).fixpart() == 0) {
+                    net_has_fix1 = true;
+                } else if(H(H.local_id(v)).fixpart() == 1) {
+                    net_has_fix2 = true;
+                } else {
+                    vec.push_back(v);
+                }
+            }
+            if(net_has_fix1 == true && net_has_fix2 == true) {
+                fc += n.cost();
+                fix_nets_overlap.push_back(n.id());
+            } else if(net_has_fix2 == true) {
+                fc2 += n.cost();
+                fix_nets2.push_back(n.id());
+                netsf.push_back(n.id());
+            } else if(net_has_fix1 == true) {
+                fc1 += n.cost();
+                fix_nets1.push_back(n.id());
+                netsf.push_back(n.id());
+            }
+
+            while(n.vertices().size() > 0) {
+                n.pop_back();
+            }
+            for(auto indi : vec) {
+                n.add_vertex(indi);
+            }
+            
+            g++;
+        }
+        std::cout << "transform fixed1\n";
+
+        for(auto n : fix_nets_overlap) {
+            H.remove_net_by_index(H.local_id_net(n));
+        }
+
+        for(auto i : fixed1) {
+            w1 += H(H.local_id(i)).weight();
+            H.remove_free_vertex(i);
+            g++;
+        }
+        std::cout << "transform fixed2\n";
+
+        long w2 = 0;
+        for(auto i : fixed2) {
+            w2 += H(H.local_id(i)).weight();
+            H.remove_free_vertex(i);
+            g++;
+        }
+
+        std::cout << "transform fixed3 " << H.nets().size() << "\n";
+
+        long fix_weight_difference = 0;
+        long fixed_vertex_part = -1;
+        long wf = -1;
+        long cid = maxid;
+        if(w1 > w2) {
+            wf = w1 - w2;
+            fix_weight_difference = w2;
+            fixed_vertex_part = 0;
+            fc += fc2;
+            for(auto n : fix_nets2) {
+                if(H.nets()[H.local_id_net(n)].size() > 0) {
+                    long costc = H.nets()[H.local_id_net(n)].cost();
+                    auto verts = std::vector<long>();
+                    for(auto i : H.nets()[H.local_id_net(n)].vertices()) {
+                        verts.push_back(i);
+                    }
+                    if(verts.size() == 0) {
+                        std::cerr << "bad1! \n"; 
+                    }
+                    H.nets()[H.local_id_net(n)].set_cost(-1 * costc);
+                    H.add_net(cid, verts, costc);
+                    cid++;
+                }
+                else {
+                    fc--;
+                }
+            }
+        }
+        else {
+            wf = w2 - w1;
+            fix_weight_difference = w1;
+            fixed_vertex_part = 1;
+            fc += fc1;
+            for(auto n : fix_nets1) {
+                if(H.nets()[H.local_id_net(n)].size() > 0) {
+                    long costc = H.nets()[H.local_id_net(n)].cost();
+                    auto verts = std::vector<long>();
+                    for(auto i : H.nets()[H.local_id_net(n)].vertices()) {
+                        verts.push_back(i);
+                    }
+                    if(verts.size() == 0) {
+                        std::cerr << "bad! \n"; 
+                    }
+                    H.nets()[H.local_id_net(n)].set_cost(-1 * costc);
+                    H.add_net(cid, verts, costc);
+                    cid++;
+                }
+                else {
+                    fc--;
+                }
+            }
+        }
+
+        long mincost = 0;
+        long maxcost = 0;
+        for(auto& n : H.nets()) {
+            if(mincost > n.cost()) {
+                mincost = n.cost();
+            }
+            if(maxcost < n.cost()) {
+                maxcost = n.cost();
+            }
+        }
+        std::cout << "transform fixed4 minco " << mincost << "\n";
+        std::cout << "transform fixed4 maxco " << maxcost << "\n";
+
+        std::cout << "transform fixed4 " << H.nets().size() << "\n";
+
+        std::cout << "Fix nets: " << fix_nets1.size() + fix_nets2.size() << "\n";
+
+        H.add_vertex(idf, netsf, wf);
+        H.add_to_nets(H(H.local_id(idf)));
+
+        auto val = 0;
+        for(auto n : H.nets()) {
+            val += n.size();
+        }
+
+        size_t nzx = val;
+        size_t VX = V - fixed1.size() - fixed2.size() + 1;
+        size_t EX = H.nets().size();
+        auto verticesx = std::vector<pmondriaan::vertex>();
+        auto netsx = std::vector<pmondriaan::net>();
+
+        for (size_t i = 0; i < H.vertices().size(); i++) {
+            for(size_t j = 0; j < H.vertices()[i].nets().size(); j++) {
+                H.vertices()[i].nets()[j] = H.local_id_net(H.vertices()[i].nets()[j]);
+            }
+            verticesx.push_back(pmondriaan::vertex(i, H.vertices()[i].nets(), H.vertices()[i].weight()));
+        }
+
+        for(auto& n : H.nets()) {
+            for(size_t i = 0; i < n.vertices().size(); i++) {
+                n.vertices()[i] = H.local_id(n.vertices()[i]);
+            }
+        }
+
+        for (size_t i = 0; i < EX; i++) {
+            if (H.nets()[i].size() > 0) {
+                netsx.push_back(pmondriaan::net(i, H.nets()[i].vertices(), H.nets()[i].cost()));
+            }
+        }
+
+        auto HC = pmondriaan::hypergraph(VX, EX, verticesx, netsx, nzx);
+
+        HC(H.local_id(idf)).set_fixpart(fixed_vertex_part);
+        HC(H.local_id(idf)).set_fixwdiff(fix_weight_difference);
+        HC(H.local_id(idf)).set_fixcdiff(fc);
+
+        std::cout << "lol: " << fc << "\n";
+
+
+        pmondriaan::remove_free_nets(world, HC, 0);
+
+
+        
+        std::cout << "transform over\n";
+        return std::move(HC);
+    }
+
+
     pmondriaan::remove_free_nets(world, H, 0);
+
+    std::cout << "transform over 2\n";
+
     return std::move(H);
 }
 
-std::optional<pmondriaan::hypergraph> read_hypergraph(std::string file, std::string mode_weight) {
+std::optional<pmondriaan::hypergraph> read_hypergraph(std::string file, std::string mode_weight, std::string fixfile) {
+    std::cout << fixfile << "\n";
     std::ifstream fs(file);
     if (fs.fail()) {
         std::cerr << "Error: " << std::strerror(errno);
         return std::nullopt;
     }
-    return read_hypergraph_istream(fs, mode_weight);
+    std::ifstream ffs(fixfile);
+    if (ffs.fail()) {
+        std::cerr << "Error: " << std::strerror(errno);
+        return std::nullopt;
+    }
+    return read_hypergraph_istream(fs, ffs, mode_weight);
 }
 
 std::optional<pmondriaan::hypergraph>
-read_hypergraph(std::string file, bulk::world& world, std::string mode_weight) {
+read_hypergraph(std::string file, bulk::world& world, std::string mode_weight, std::string fixfile) {
+    std::cout << fixfile << "\n";
     std::ifstream fs(file);
     if (fs.fail()) {
         std::cerr << "Error: " << std::strerror(errno);
         return std::nullopt;
     }
-    return read_hypergraph_istream(fs, world, mode_weight);
+    std::ifstream ffs(fixfile);
+    if (ffs.fail()) {
+        std::cerr << "Error: " << std::strerror(errno);
+        return std::nullopt;
+    }
+    return read_hypergraph_istream(fs, world, ffs, mode_weight);
 }
 
 } // namespace pmondriaan

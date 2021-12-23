@@ -22,9 +22,13 @@ std::string mtx_three_nonzeros = R"(%%MatrixMarket matrix coordinate real genera
 1 3 1.0
 )";
 
+std::string fixfile = R"(
+)";
+
 TEST(KLFMSortVertices, KLFMSortVerticesInit) {
     std::stringstream mtx_ss(mtx_three_nonzeros);
-    auto hypergraph = read_hypergraph_istream(mtx_ss, "degree");
+    std::stringstream mtx_ssf(fixfile);
+    auto hypergraph = read_hypergraph_istream(mtx_ss, mtx_ssf, "degree");
     auto H = hypergraph.value();
     H(0).set_part(1);
     H(1).set_part(0);

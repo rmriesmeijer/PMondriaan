@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cstdlib>
 
 #include <bulk/bulk.hpp>
 #ifdef BACKEND_MPI
@@ -18,6 +19,46 @@ namespace pmondriaan {
 bool partitioning_to_file(bulk::world& world, pmondriaan::hypergraph& H, std::string file, int k) {
     auto starts = start_parts(world, H, k);
     if (world.rank() == 0) {
+        std::ofstream out2("./fixfile_x.txt");
+        if (out2.fail()) {
+            std::cerr << "Error: " << std::strerror(errno);
+            return false;
+        }
+        std::ofstream out4("./fixfile_o.txt");
+        if (out4.fail()) {
+            std::cerr << "Error: " << std::strerror(errno);
+            return false;
+        }
+        for(auto v : H.vertices()) {
+            out2 << v.id() << " " << v.part() << "\n";
+            if(rand() % 1000 < 3) {
+                out4 << v.id() << " " << v.part() << "\n";
+            }
+            else {
+                out4 << v.id() << " -1\n";
+            }
+        }
+        std::ofstream out3("./fixfile_x2.txt");
+        if (out3.fail()) {
+            std::cerr << "Error: " << std::strerror(errno);
+            return false;
+        }
+        std::ofstream out5("./fixfile_o2.txt");
+        if (out5.fail()) {
+            std::cerr << "Error: " << std::strerror(errno);
+            return false;
+        }
+        for(auto v : H.vertices()) {
+            out3 << v.part() << "\n";
+            if(rand() % 1000 < 3) {
+                out5 << v.part() << "\n";
+            }
+            else {
+                out5 << "-1\n";
+            }
+        }
+        out2.close();
+        out3.close();
         std::ofstream out(file);
         if (out.fail()) {
             std::cerr << "Error: " << std::strerror(errno);

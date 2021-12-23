@@ -72,7 +72,9 @@ long KLFM_pass(pmondriaan::hypergraph& H,
                std::mt19937& rng) {
 
     auto max_extra_weight = std::array<long, 2>();
+    std::cout << "kl a cs\n";
     auto gain_structure = pmondriaan::gain_structure(H, C);
+    std::cout << "kl b cs\n";
 
     long best_cut_size = cut_size;
     auto no_improvement_moves = std::vector<long>();

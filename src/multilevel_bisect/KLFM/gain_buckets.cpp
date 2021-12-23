@@ -271,7 +271,12 @@ long gain_structure::compute_size_buckets() {
     for (auto& v : H_.vertices()) {
         long sum = 0;
         for (auto n : v.nets()) {
-            sum += H_.net(n).cost();
+            if (H_.net(n).cost() < 0) {
+                sum -= H_.net(n).cost();
+            }
+            else {
+                sum += H_.net(n).cost();
+            }
         }
         if (sum > max_value) {
             max_value = sum;

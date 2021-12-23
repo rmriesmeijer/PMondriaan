@@ -91,6 +91,13 @@ std::vector<long> bisect_multilevel(bulk::world& world,
                                     interval labels,
                                     std::mt19937& rng) {
 
+    long fix_cost_diff = 0;
+    for(auto v : H.vertices()) {
+        if(v.fixpart() != -1) {
+            fix_cost_diff = v.fixcdiff();
+        }
+    }
+
     auto H_reduced = pmondriaan::create_new_hypergraph(world, H, start, end);
 
     size_t nc_par = 0;
@@ -132,22 +139,13 @@ std::vector<long> bisect_multilevel(bulk::world& world,
         }
 
 
-        std::map<std::vector<long>, int> edge_counts;
-        std::map<std::vector<long>, long> ids;
-        std::unordered_set<long> remove_nets;
+        // std::map<std::vector<long>, int> edge_counts;
+        // std::map<std::vector<long>, long> ids;
+        // std::unordered_set<long> remove_nets;
 
-        for (auto n : HC_list[nc_par].nets()) {
-            edge_counts[n.vertices()] += n.cost();
-            ids[n.vertices()] = n.id();
-        }
-
-        // for (auto n = 0u; n < HC_list[nc_par].nets().size(); n++) {
-        //     if(ids[HC_list[nc_par].nets()[n].vertices()] != HC_list[nc_par].nets()[n].id()) {
-        //         HC_list[nc_par].nets()[n].set_cost(0);
-        //     }
-        //     else {
-        //         HC_list[nc_par].nets()[n].set_cost(edge_counts[HC_list[nc_par].nets()[n].vertices()]);
-        //     }
+        // for (auto n : HC_list[nc_par].nets()) {
+        //     edge_counts[n.vertices()] += n.cost();
+        //     ids[n.vertices()] = n.id();
         // }
 
         // we now communicate the entire hypergraph to all processors using a queue containing id, weight and nets
@@ -165,28 +163,28 @@ std::vector<long> bisect_multilevel(bulk::world& world,
             for (long t = 0; t < world.rank(); t++) {
 
 
-                //net_cost_queue(t).send(n.id(), n.cost());
+                net_cost_queue(t).send(n.id(), n.cost());
 
 
-                if(ids[n.vertices()] != n.id()) {
-                    net_cost_queue(t).send(n.id(), 0);
-                }
-                else {
-                    net_cost_queue(t).send(n.id(), edge_counts[n.vertices()]);
-                }
+                // if(ids[n.vertices()] != n.id()) {
+                //     net_cost_queue(t).send(n.id(), 0);
+                // }
+                // else {
+                //     net_cost_queue(t).send(n.id(), edge_counts[n.vertices()]);
+                // }
             }
             for (long t = world.rank() + 1; t < world.active_processors(); t++) {
 
 
-                //net_cost_queue(t).send(n.id(), n.cost());
+                net_cost_queue(t).send(n.id(), n.cost());
 
 
-                if(ids[n.vertices()] != n.id()) {
-                    net_cost_queue(t).send(n.id(), 0);
-                }
-                else {
-                    net_cost_queue(t).send(n.id(), edge_counts[n.vertices()]);
-                }
+                // if(ids[n.vertices()] != n.id()) {
+                //     net_cost_queue(t).send(n.id(), 0);
+                // }
+                // else {
+                //     net_cost_queue(t).send(n.id(), edge_counts[n.vertices()]);
+                // }
             }
         }
         HC_list.push_back(HC_list[nc_par]);
@@ -207,15 +205,15 @@ std::vector<long> bisect_multilevel(bulk::world& world,
             HC_list[nc_par].add_to_nets(HC_list[nc_par].vertices().back());
         }
         
-        for (auto n = 0u; n < HC_list[nc_par].nets().size(); n++) {
-            if(HC_list[nc_par].nets()[n].cost() == 0) {
-                remove_nets.insert(HC_list[nc_par].nets()[n].id());
-            }
-        }
+        // for (auto n = 0u; n < HC_list[nc_par].nets().size(); n++) {
+        //     if(HC_list[nc_par].nets()[n].cost() == 0) {
+        //         remove_nets.insert(HC_list[nc_par].nets()[n].id());
+        //     }
+        // }
 
-        for (auto n : remove_nets) {
-            HC_list[nc_par].remove_net_by_index(HC_list[nc_par].local_id_net(n));
-        }
+        // for (auto n : remove_nets) {
+        //     HC_list[nc_par].remove_net_by_index(HC_list[nc_par].local_id_net(n));
+        // }
 
         if (print_time && (world.rank() == 0)) {
             world.log("s: %d, time in creating new hypergraph: %lf",
@@ -259,7 +257,7 @@ std::vector<long> bisect_multilevel(bulk::world& world,
             world.log("s: %d, time in initial partitioning: %lf", world.rank(),
                       time.get_change());
         }
-        world.log("s %d: cut after initial partitioning: %d", world.rank(), cut);
+        world.log("s %d: cut after initial partitioning: %d", world.rank(), cut + fix_cost_diff);
     }
 
     while (nc_tot > nc_par) {
@@ -275,7 +273,7 @@ std::vector<long> bisect_multilevel(bulk::world& world,
                 world.log("s: %d, time in iteration seq uncoarsening: %lf",
                           world.rank(), time.get_change());
             }
-            world.log("s %d: cut after seq uncoarsening: %d", world.rank(), cut);
+            world.log("s %d: cut after seq uncoarsening: %d", world.rank(), cut + fix_cost_diff);
         }
     }
 
@@ -310,7 +308,7 @@ std::vector<long> bisect_multilevel(bulk::world& world,
 
         cut = cut_size;
         if (world.rank() == 0) {
-            world.log("s %d: cut at start par uncoarsening: %d", world.rank(), cut);
+            world.log("s %d: cut at start par uncoarsening: %d", world.rank(), cut + fix_cost_diff);
         }
         time.get();
         while (nc_par > 0) {
@@ -328,7 +326,7 @@ std::vector<long> bisect_multilevel(bulk::world& world,
                     world.log("s: %d, time in iteration par uncoarsening: %lf",
                               world.rank(), time.get_change());
                 }
-                world.log("s %d: cut after par uncoarsening: %d", world.rank(), cut);
+                world.log("s %d: cut after par uncoarsening: %d", world.rank(), cut + fix_cost_diff);
             }
         }
     }
