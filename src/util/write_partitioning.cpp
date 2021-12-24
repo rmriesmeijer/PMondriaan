@@ -18,6 +18,11 @@ namespace pmondriaan {
 
 bool partitioning_to_file(bulk::world& world, pmondriaan::hypergraph& H, std::string file, int k) {
     auto starts = start_parts(world, H, k);
+
+    for(auto& v : H.vertices()) {
+        v.set_part(rand() % 2);
+    }
+
     if (world.rank() == 0) {
         std::ofstream out2("./fixfile_x.txt");
         if (out2.fail()) {
@@ -49,16 +54,24 @@ bool partitioning_to_file(bulk::world& world, pmondriaan::hypergraph& H, std::st
             return false;
         }
         for(auto v : H.vertices()) {
-            out3 << v.part() << "\n";
-            if(rand() % 1000 < 3) {
-                out5 << v.part() << "\n";
+            
+            if(rand() % 1000 < 30) {
+                out3 << v.id() << " " << v.part() << "\n";
             }
             else {
-                out5 << "-1\n";
+                out3 << v.id() << " " << "-1\n";
+            }
+            if(rand() % 1000 < 80) {
+                out5 << v.id() << " " << v.part() << "\n";
+            }
+            else {
+                out5 << v.id() << " " << "-1\n";
             }
         }
         out2.close();
         out3.close();
+        out4.close();
+        out5.close();
         std::ofstream out(file);
         if (out.fail()) {
             std::cerr << "Error: " << std::strerror(errno);
